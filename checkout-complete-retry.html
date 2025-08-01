@@ -37,7 +37,7 @@
           throw new Error("Stripe session ID not found in URL.");
         }
 
-        const res = await fetch("https://YOUR_PROJECT.supabase.co/functions/v1/complete-retry-payment", {
+        const res = await fetch("https://jtrenbwpefzevqlkcfly.supabase.co/functions/v1/complete-retry-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ session_id: sessionId }),
