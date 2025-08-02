@@ -91,7 +91,7 @@
 
     if (event.data?.type === "TOKEN") {
       console.log("✅ Token received from FlutterFlow.");
-      const { token, order_id } = event.data;
+      const { token } = event.data;
 
       if (token) {
         console.log("📦 Token:", token);
