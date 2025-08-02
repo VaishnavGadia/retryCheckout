@@ -2,16 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Retry Checkout</title>
   <script src="https://js.stripe.com/v3/"></script>
   <meta http-equiv="Permissions-Policy" content="payment=*" />
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; padding: 1rem; background-color: #fff; }
-    #checkout { max-width: 500px; margin: 0 auto; }
-    #error-message { color: #dc2626; text-align: center; margin-top: 1rem; font-family: monospace; white-space: pre-wrap; }
-    .loader { margin: 2rem auto; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 2s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      padding: 1rem;
+      background-color: #fff;
+    }
+    #checkout {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    #error-message {
+      color: #dc2626;
+      text-align: center;
+      margin-top: 1rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    .loader {
+      margin: 2rem auto;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
   </style>
 </head>
 <body>
@@ -19,92 +47,81 @@
   <div id="checkout"></div>
   <div id="error-message"></div>
 
-<script type="module">
-  const errorDiv = document.getElementById("error-message");
+  <script type="module">
+    const errorDiv = document.getElementById("error-message");
 
-  function sendError(message) {
-    const payload = { type: 'VERIFY_RESULT', success: false, message };
-    if (window.FlutterFlowChannel) {
-      FlutterFlowChannel.postMessage(JSON.stringify(payload));
+    function sendError(message) {
+      const payload = { type: "VERIFY_RESULT", success: false, message };
+      if (window.FlutterFlowChannel) {
+        FlutterFlowChannel.postMessage(JSON.stringify(payload));
+      }
+      window.parent?.postMessage(payload, "*");
     }
-    window.parent?.postMessage(payload, '*');
-  }
 
-  async function initializeRetryCheckout(accessToken) {
-    try {
-      console.log("1️⃣ Calling create-retry-checkout-session...");
-      const res = await fetch("https://jtrenbwpefzevqlkcfly.supabase.co/functions/v1/create-retry-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessToken}`,
-        },
-        // body: JSON.stringify({}),
-      });
-
-      console.log("2️⃣ Retry session request responded:", res.status);
-      const body = await res.json();
-
-      console.log("🔍 Response Body:", body);
-      if (!res.ok || body.error) {
-        throw new Error(body.error || `Request failed with status ${res.status}`);
-      }
-
-      const { clientSecret, sessionId, publishableKey } = body;
-
-      // Store for completion HTML
-      sessionStorage.setItem("retrySessionId", sessionId);
-      sessionStorage.setItem("jwtToken", accessToken);
-
-      let stripe;
+    async function initializeRetryCheckout(accessToken) {
       try {
-        stripe = Stripe(publishableKey);
-        console.log("3️⃣ Stripe.js initialized.");
-      } catch (e) {
-        throw new Error(`Failed to initialize Stripe.js: ${e.message}`);
-      }
+        console.log("1️⃣ Calling create-retry-checkout-session...");
+        const res = await fetch(
+          "https://jtrenbwpefzevqlkcfly.supabase.co/functions/v1/create-retry-checkout-session",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
 
-      let checkout;
-      try {
-        checkout = await stripe.initEmbeddedCheckout({
+        console.log("2️⃣ Retry session request responded:", res.status);
+        const body = await res.json();
+
+        console.log("🔍 Response Body:", body);
+        if (!res.ok || body.error) {
+          throw new Error(body.error || `Request failed with status ${res.status}`);
+        }
+
+        const { clientSecret, sessionId, publishableKey } = body;
+
+        sessionStorage.setItem("retrySessionId", sessionId);
+        sessionStorage.setItem("jwtToken", accessToken);
+
+        const stripe = Stripe(publishableKey);
+
+        const checkout = await stripe.initEmbeddedCheckout({
           fetchClientSecret: () => Promise.resolve(clientSecret),
         });
-        console.log("4️⃣ Stripe Embedded Checkout initialized.");
-      } catch (e) {
-        throw new Error(`Failed to initEmbeddedCheckout: ${e.message}. This is likely a permissions policy issue.`);
-      }
 
-      document.getElementById("loader").style.display = "none";
-      checkout.mount("#checkout");
-      console.log("5️⃣ Checkout UI mounted.");
-
-    } catch (err) {
-      console.error("❌ RETRY CHECKOUT FAILED:", err);
-      document.getElementById("loader").style.display = "none";
-      errorDiv.textContent = err.message;
-      sendError(err.message);
-    }
-  }
-
-  window.addEventListener("message", (event) => {
-    console.log("📩 Full message from FlutterFlow:", event.data);
-
-    if (event.data?.type === "TOKEN") {
-      console.log("✅ Token received from FlutterFlow.");
-      const { token } = event.data;
-
-      if (token) {
-        console.log("📦 Token:", token);
-        initializeRetryCheckout(token);
-      } else {
-        const errorMsg = "❌ Missing token.";
         document.getElementById("loader").style.display = "none";
-        errorDiv.textContent = errorMsg;
-        sendError(errorMsg);
+        checkout.mount("#checkout");
+        console.log("✅ Checkout UI mounted.");
+      } catch (err) {
+        console.error("❌ RETRY CHECKOUT FAILED:", err);
+        document.getElementById("loader").style.display = "none";
+        errorDiv.textContent = err.message;
+        sendError(err.message);
       }
     }
-  });
 
-</script>
+    // Listen for token message from FlutterFlow or parent
+    window.addEventListener("message", (event) => {
+      console.log("📩 Full message from FlutterFlow:", event.data);
+
+      if (event.data?.type === "TOKEN") {
+        console.log("✅ Token received from FlutterFlow.");
+        const token = event.data.token || event.data.token;
+
+        if (token) {
+          console.log("📦 Token:", token);
+          initializeRetryCheckout(token);
+        } else {
+          const errorMsg = "❌ Missing token.";
+          document.getElementById("loader").style.display = "none";
+          errorDiv.textContent = errorMsg;
+          sendError(errorMsg);
+        }
+      }
+    });
+  </script>
 </body>
 </html>
+
