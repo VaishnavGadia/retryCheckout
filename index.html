@@ -30,7 +30,7 @@
     window.parent?.postMessage(payload, '*');
   }
 
-  async function initializeRetryCheckout(accessToken, orderId) {
+  async function initializeRetryCheckout(accessToken) {
     try {
       console.log("1️⃣ Calling create-retry-checkout-session...");
       const res = await fetch("https://jtrenbwpefzevqlkcfly.supabase.co/functions/v1/create-retry-checkout-session", {
@@ -39,7 +39,7 @@
           "Content-Type": "application/json",
           "Authorization": `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ order_id: orderId }),
+        body: JSON.stringify({}),
       });
 
       console.log("2️⃣ Retry session request responded:", res.status);
@@ -93,11 +93,11 @@
       console.log("✅ Token received from FlutterFlow.");
       const { token, order_id } = event.data;
 
-      if (token && order_id) {
-        console.log("📦 Token and order_id:", token, order_id);
+      if (token) {
+        console.log("📦 Token:", token);
         initializeRetryCheckout(token, order_id);
       } else {
-        const errorMsg = "❌ Missing token or order_id.";
+        const errorMsg = "❌ Missing token.";
         document.getElementById("loader").style.display = "none";
         errorDiv.textContent = errorMsg;
         sendError(errorMsg);
